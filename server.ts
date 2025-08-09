@@ -1,31 +1,5 @@
-// Deno.serve((_req) => {
-//     return new Response("Hello, World!");
-//   });
-
-
-// import { serveDir, serveFile } from "jsr:@std/http/file-server";
-// Deno.serve((req: Request) => {
-//   const pathname = new URL(req.url).pathname;
-
-//   if (pathname === "/simple_file") {
-//     return serveFile(req, "./basic.html");
-//   }
-
-//   if (pathname.startsWith("/static")) {
-//     return serveDir(req, {
-//       fsRoot: "public",
-//       urlRoot: "static",
-//     });
-//   }
-
-//   return new Response("404: Not Found", {
-//     status: 404,
-//   });
-// });
-
 import { DB } from "https://deno.land/x/sqlite/mod.ts";
-import { Fido2Lib, isBase64Url } from "https://deno.land/x/fido2/dist/main.js";
-import { Buffer } from "node:buffer";
+import { Fido2Lib } from "https://deno.land/x/fido2/dist/main.js";
 
 const f2l = new Fido2Lib({
     timeout: 42,
@@ -429,7 +403,7 @@ Deno.serve(async (req) => {
       console.log("Decoded client data:", clientDataJSON);
 
       try {
-        const username = clientAttestationResponse.username; //FIXME
+        const username = clientAttestationResponse.username;
 
         const query2 = db.prepareQuery("SELECT sessionChallenge FROM sessionChallenges WHERE username = ?");
         const challengeRow = query2.first([username]);
