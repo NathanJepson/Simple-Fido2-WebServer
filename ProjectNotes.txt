@@ -1,5 +1,7 @@
 https://deno.land/x/fido2
 	https://github.com/webauthn-open-source/fido2-lib
+https://deno.land/x/fido2@3.5.3/dist/main.js
+^All functions currently available in the library
 https://fido-tools.github.io/fido2-library/Fido2Lib.html
 https://webauthn-open-source.github.io/fido2-lib/Fido2Lib.html
 ^Documentation of some of the Fido2 params
