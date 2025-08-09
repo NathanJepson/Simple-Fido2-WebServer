@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register a New Account</title>
+</head>
+<body>
+  <h1>Register Form</h1>
+  
+  <!-- Form to collect username and password -->
+  <form id="registerForm">
+    <label for="username">Username:</label>
+    <input type="text" id="username" name="username" required /><br><br>
+    
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required /><br><br>
+    
+    <button type="submit">Register</button>
+  </form>
+</br>
+<div>
+  <button onclick="register()">Fido2 Register</button>
+</div>
+  
+  <script>
+    //Fido2
+
+    function base64urlToUint8Array(base64url) {
+      // Replace - with + and _ with / and pad with =
+      let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4 !== 0) {
+        base64 += '=';
+      }
+
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    function bufferToBase64url(buffer) {
+      return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+    }
+
+    function base64urlToBuffer(base64url) {
+      const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/") + "==".slice(0, (4 - base64url.length % 4) % 4);
+      const binary = atob(base64);
+      return Uint8Array.from(binary, c => c.charCodeAt(0));
+    }
+
+    async function register() {
+      const username = document.getElementById('username').value;
+
+      if (!username) {
+        alert('Please enter a username');
+        return;
+      }
+
+      // Create the payload to send in the POST request
+      const payload = {
+        username: username,
+      };
+
+      try {
+          const optionsResponse = await fetch('/registerFido2options', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const options = await optionsResponse.json();
+        console.log('Registration options received:', options);
+        // Convert challenge and user.id from base64url to Uint8Array
+        //options.challenge = options.challenge;
+        //console.log(options.challenge);
+        //console.log(typeof options.challenge);
+
+        options.challenge = base64urlToUint8Array(options.challenge);
+        options.user.id = base64urlToUint8Array(options.user.id);
+
+        if (options.excludeCredentials) {
+          options.excludeCredentials = options.excludeCredentials.map((cred) => ({
+            ...cred,
+            id: base64urlToUint8Array(cred.id)
+          }));
+        }
+
+        console.log('Processed options for WebAuthn API:', options);
+
+        const credential = await navigator.credentials.create({ publicKey: options });
+        console.log('Credential created:', credential);
+
+        const clientAttestationResponse = {
+          id: credential.id,
+          rawId: bufferToBase64url(credential.rawId),
+          type: credential.type,
+          username: username,
+          response: {
+            attestationObject: bufferToBase64url(credential.response.attestationObject),
+            clientDataJSON: bufferToBase64url(credential.response.clientDataJSON)
+          }
+        };
+
+        console.log('Sending attestation response:', clientAttestationResponse);
+
+        const verifyResponse = await fetch("/registerFido2", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(clientAttestationResponse)
+        });
+
+        const result = await verifyResponse.json();
+        if (result.success) {
+          alert(`Registration successful! ${result.message}`);
+        } else {
+          alert(`Error: ${result.error}`);
+        }
+
+      } catch (error) {
+        console.error('Error during Fido2 registration:', error);
+        alert('An error occurred during registration: ' + error.message);
+      }      
+    }
+
+    // Event listener for form submission (non-Fido2)
+    document.getElementById('registerForm').addEventListener('submit', async function(event) {
+      event.preventDefault();  // Prevent form submission from reloading the page
+      
+      // Get values from input fields
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      // Create the payload to send in the POST request
+      const payload = {
+        username: username,
+        password: password
+      };
+
+      try {
+        // Send POST request to /register with the payload
+        const response = await fetch('/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        // Parse and handle the JSON response from the server
+        const data = await response.json();
+
+        if (data.message) {
+            // Alert the success message
+            alert(data.message)
+        } else {
+            alert(data.error);
+        }
+      } catch (error) {
+        console.error('Error during POST request:', error);
+        alert('An error occurred while sending the data.');
+      }
+    });
+
+  </script>
+</body>
+</html>

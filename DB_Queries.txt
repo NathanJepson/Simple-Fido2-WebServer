@@ -1,0 +1,8 @@
+CREATE TABLE credentials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    cred_id BLOB NOT NULL,               -- authenticator credential ID
+    public_key BLOB NOT NULL,            -- authenticator's public key
+    counter INTEGER NOT NULL DEFAULT 0,   -- signature counter
+    FOREIGN KEY(username) REFERENCES people(username) ON DELETE CASCADE
+)

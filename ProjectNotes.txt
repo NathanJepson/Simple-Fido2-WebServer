@@ -1,0 +1,31 @@
+https://deno.land/x/fido2
+	https://github.com/webauthn-open-source/fido2-lib
+https://fido-tools.github.io/fido2-library/Fido2Lib.html
+https://webauthn-open-source.github.io/fido2-lib/Fido2Lib.html
+^Documentation of some of the Fido2 params
+
+https://www.iana.org/assignments/cose/cose.xhtml
+^Cose params used by "crytoParams"
+ cryptoParams: [-7, -257] = 
+	-7 ECDSA w/ SHA-256	
+	-257 RSASSA-PKCS1-v1_5 using SHA-256
+	(both deprecated)
+
+	-9 ECDSA using P-256 curve and SHA-256
+	-19 EdDSA using Ed25519 curve
+	-37 RSASSA-PSS w/ SHA-256
+
+	If left unspecified, Chrome uses the default values of ES256 (-7) and RS256 (-257).
+	https://chromium.googlesource.com/chromium/src/+/main/content/browser/webauth/pub_key_cred_params.md
+	Probably most authenticators support -7 and -257 
+
+https://guptadeepak.com/implementing-fido2-authentication-a-developers-step-by-step-guide/
+^Similar implementation
+
+https://deno.land/x/fido2@3.5.3/types/main.d.ts
+^More clear way to view the types
+
+https://github.com/webauthn-open-source/fido2-lib/blob/master/examples/u2f-migrated-example.js
+^Possible example usage, if it's not wrong or outdated
+
+deno run --allow-net --allow-read --allow-write server.ts

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login Page</title>
+</head>
+<body>
+  <h1>Login Form</h1>
+  
+  <!-- Form to collect username and password -->
+  <form id="loginForm">
+    <label for="username">Username:</label>
+    <input type="text" id="username" name="username" required /><br><br>
+    
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required /><br><br>
+    
+    <button type="submit">Submit</button>
+  </form>
+</br></br>
+  <a href="/register">
+    Register
+  </a>
+  
+  <script>
+    // Event listener for form submission
+    document.getElementById('loginForm').addEventListener('submit', async function(event) {
+      event.preventDefault();  // Prevent form submission from reloading the page
+      
+      // Get values from input fields
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      // Create the payload to send in the POST request
+      const payload = {
+        username: username,
+        password: password
+      };
+
+      try {
+        // Send POST request to /submit with the payload
+        const response = await fetch('/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        // Parse and handle the JSON response from the server
+        const data = await response.json();
+        
+        if (data.message) {
+          // Alert the success message
+          alert(data.message)
+          if (response.ok) {
+            try {
+              window.location.href = "/Box/Service.png";
+            } catch (error) {
+              console.log(error);
+            }
+          }
+        } else {
+          alert(data.error);
+        }
+      } catch (error) {
+        console.error('Error during POST request:', error);
+        alert('An error occurred while sending the data.');
+      }
+    });
+  </script>
+</body>
+</html>

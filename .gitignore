@@ -1,0 +1,4 @@
+*.db
+favicon.ico
+deno.lock
+Service.png
