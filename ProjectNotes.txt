@@ -6,6 +6,9 @@ https://fido-tools.github.io/fido2-library/Fido2Lib.html
 https://webauthn-open-source.github.io/fido2-lib/Fido2Lib.html
 ^Documentation of some of the Fido2 params
 
+https://www.w3.org/TR/webauthn
+^webauth specs
+
 https://www.iana.org/assignments/cose/cose.xhtml
 ^Cose params used by "crytoParams"
  cryptoParams: [-7, -257] = 
