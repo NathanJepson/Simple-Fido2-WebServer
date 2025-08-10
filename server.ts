@@ -507,36 +507,86 @@ Deno.serve(async (req) => {
     }
   }
 
-  if (req.method === "GET" && pathname === "/Fido2") {
-    try {
-      const authnOptions = await f2l.assertionOptions() as PublicKeyCredentialRequestOptions;
-      if (authnOptions) {
-        const encodedChallenge = bufferSourceToBase64Url(authnOptions.challenge);
-        const safeAuthnOptions = prepareAuthenticationOptionsForClient(authnOptions);
+  if (req.method === "POST" && pathname === "/Fido2-Begin") {
 
-        console.log('Sending authnOptions to user:',safeAuthnOptions);
-        return new Response(JSON.stringify(safeAuthnOptions), {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-          }
-        });
-      } else {
-        console.error("Error in instantiating authnOptions");
-        return new Response(
-          JSON.stringify({ error: "Internal Server Error" }),
-          { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-      }
+     try {
+      const userRequest = await req.json();  
+      console.log('Fido2 auth begin user request:',userRequest);
       
-    } catch (error) {
-        console.error("Error:", error);
-        return new Response(
-          JSON.stringify({ error: "Internal Server Error" }),
-          { status: 500, headers: { "Content-Type": "application/json" } }
-        );
+      try {
+        const authnOptions = await f2l.assertionOptions() as PublicKeyCredentialRequestOptions;
+        if (authnOptions) {
+          try {
+            console.log("New Fido2 login request:", userRequest);
+
+            const username = userRequest.username;
+
+            const query3 = db.prepareQuery("SELECT cred_id FROM credentials WHERE username = ?");
+            const credIDRow = query3.first([username]);
+
+            if (!credIDRow) {
+              console.error("Fido2 credentials don't exist for",username);
+              return new Response(
+                JSON.stringify({ error: "Invalid login information." }),
+                { status: 400, headers: { "Content-Type": "application/json" } }
+              );
+            } else {
+
+              const credId = credIDRow[0];
+              const encodedChallenge = bufferSourceToBase64Url(authnOptions.challenge);
+              const safeAuthnOptions = prepareAuthenticationOptionsForClient(authnOptions);
+
+              const safeAuthnOptions2 = {
+                  allowCredentials: [ // force only specific credentials
+                    {
+                      id: credId,
+                      type: "public-key",
+                    },
+                  ],
+                  ...safeAuthnOptions,
+              };
+              console.log('Sending authnOptions to user:',safeAuthnOptions2);
+              return new Response(JSON.stringify(safeAuthnOptions2), {
+                status: 200,
+                headers: {
+                  "Content-Type": "application/json",
+                }
+              });
+            }
+
+          } catch (error) {
+          console.error("SQLite error:", error);
+          return new Response(
+            JSON.stringify({ error: "Internal Server Error" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        } else {
+          console.error("Error in instantiating authnOptions");
+          return new Response(
+            JSON.stringify({ error: "Internal Server Error" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+      } catch (error) {
+          console.error("Error:", error);
+          return new Response(
+            JSON.stringify({ error: "Internal Server Error" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+      }
+
+     } catch (error) {
+      console.error("Error parsing JSON:", error);
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON format" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
     }
   }
+
 
   if (req.method === "POST" && pathname === "/Fido2") {
     

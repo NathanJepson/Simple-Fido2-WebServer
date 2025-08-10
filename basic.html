@@ -9,6 +9,7 @@
   <h1>Login Form</h1>
   
   <!-- Form to collect username and password -->
+  <div>
   <form id="loginForm">
     <label for="username">Username:</label>
     <input type="text" id="username" name="username" required /><br><br>
@@ -18,13 +19,88 @@
     
     <button type="submit">Submit</button>
   </form>
+  </div>
+</br>
+<div>
+  <button onclick="login()">Fido2 Login</button>
+</div>
 </br></br>
   <a href="/register">
     Register
   </a>
   
   <script>
-    // Event listener for form submission
+    function base64urlToUint8Array(base64url) {
+      // Replace - with + and _ with / and pad with =
+      let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4 !== 0) {
+        base64 += '=';
+      }
+
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    async function login() {
+      const username = document.getElementById('username').value;
+
+      if (!username) {
+        alert('Please enter a username');
+        return;
+      }
+
+      const payload = {
+        username: username,
+      };
+
+      try {
+        const optionsResponse = await fetch('/Fido2-Begin', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          });
+
+        const options = await optionsResponse.json();
+
+        if (options.error) {
+          throw options.error;
+        }
+
+        console.log('Authentication options received:', options);
+
+        //options.challenge = base64urlToUint8Array(options.challenge);
+        //const credential = await navigator.credentials.get({ publicKey: options });
+
+        if (options.allowCredentials) {
+          options.allowCredentials = options.allowCredentials.map((cred) => ({
+            ...cred,
+            id: base64urlToUint8Array(cred.id)
+          }));
+        }
+
+        const credential = await navigator.credentials.get({
+          publicKey: {
+            ...options,
+            challenge: base64urlToUint8Array(options.challenge)
+          } 
+        });
+
+        console.log('Credential info to send:',credential);
+
+
+      } catch (error) {
+        console.error('Error: ', error);
+        alert('Error: ' + error);
+      }
+    }
+
+    // Event listener for form submission (non-Fido2 login)
     document.getElementById('loginForm').addEventListener('submit', async function(event) {
       event.preventDefault();  // Prevent form submission from reloading the page
       
