@@ -1,5 +1,5 @@
 import { DB } from "https://deno.land/x/sqlite/mod.ts";
-import { Fido2Lib } from "https://deno.land/x/fido2/dist/main.js";
+import { Fido2Lib} from "https://deno.land/x/fido2/dist/main.js";
 
 const f2l = new Fido2Lib({
     timeout: 42,
@@ -65,6 +65,13 @@ function prepareRegistrationOptionsForClient(options: PublicKeyCredentialCreatio
       ...cred,
       id: bufferSourceToBase64Url(cred.id),
     })),
+  };
+}
+
+function prepareAuthenticationOptionsForClient(options: PublicKeyCredentialRequestOptions) {
+  return {
+    ...options,
+    challenge: bufferSourceToBase64Url(options.challenge),
   };
 }
 
@@ -448,12 +455,13 @@ Deno.serve(async (req) => {
           const regResult = await f2l.attestationResult(attestationResult, expectations); // will throw on error
           console.log("Registration result:", regResult);
 
-          // Save regResult.authnrData.get("credentialPublicKeyCose") and counter
-          if (regResult.authnrData?.get('credentialPublicKeyCose') !== undefined && regResult.authnrData?.get('counter') !== undefined && regResult.authnrData?.get('credId') !== undefined) {
+          // Save regResult.authnrData.get("credentialPublicKeyPem") and counter
+          if (regResult.authnrData?.get('credentialPublicKeyPem') !== undefined && regResult.authnrData?.get('counter') !== undefined && regResult.authnrData?.get('credId') !== undefined) {
             console.log("Registration result:", regResult);
 
             const credId = toBase64Url(regResult.authnrData.get('credId'));
-            const publicKey = toBase64Url(regResult.authnrData.get('credentialPublicKeyCose'));
+            //const publicKey = toBase64Url(regResult.authnrData.get('credentialPublicKeyCose'));
+            const publicKey = regResult.authnrData.get('credentialPublicKeyPem');
             const counter = regResult.authnrData.get('counter');
 
             try {
@@ -497,6 +505,41 @@ Deno.serve(async (req) => {
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
+  }
+
+  if (req.method === "GET" && pathname === "/Fido2") {
+    try {
+      const authnOptions = await f2l.assertionOptions() as PublicKeyCredentialRequestOptions;
+      if (authnOptions) {
+        const encodedChallenge = bufferSourceToBase64Url(authnOptions.challenge);
+        const safeAuthnOptions = prepareAuthenticationOptionsForClient(authnOptions);
+
+        console.log('Sending authnOptions to user:',safeAuthnOptions);
+        return new Response(JSON.stringify(safeAuthnOptions), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          }
+        });
+      } else {
+        console.error("Error in instantiating authnOptions");
+        return new Response(
+          JSON.stringify({ error: "Internal Server Error" }),
+          { status: 500, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      
+    } catch (error) {
+        console.error("Error:", error);
+        return new Response(
+          JSON.stringify({ error: "Internal Server Error" }),
+          { status: 500, headers: { "Content-Type": "application/json" } }
+        );
+    }
+  }
+
+  if (req.method === "POST" && pathname === "/Fido2") {
+    
   }
 
   if (req.method === "GET" && pathname.substring(0,4) === "/Box") {
