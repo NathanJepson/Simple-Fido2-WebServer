@@ -20,7 +20,7 @@ The **sessionChallenges** table has challenges that are stored by the server dur
 # Using the Server
 You register accounts with the register.html page (and can register Fido2 credentials), then login with the login form (basic.html).
 You can register and login with Fido2 / passkeys, or just a simple password.
-Upon login, the web server should reidrect you to /Box/Service.png
+Upon login, the web server should redirect you to /Box/Service.png
 
 The web server should run on **localhost port 8000**
 
