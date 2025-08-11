@@ -33,3 +33,6 @@ deno run --allow-net --allow-read --allow-write server.ts
 
 ![Screenshot of a login form with a basic username field, password field, and 2 buttons below it which say "Submit" and "Fido2 Login" and a hyperlink that says "Register"](Box/LoginForm.png)
 ![Screenshot of a register form with a basic username field, password field, Display Name field, and 2 buttons below them which say "Register" and "Fido2 Register" and a hyperlink that says "Back to Login"](Box/RegisterForm.png)
+
+# Research
+For some of my project notes and sources as I was researching how to understand the Fido2 standard and some of the libraries I was working with, you can refer to **ProjectNotes.txt**
