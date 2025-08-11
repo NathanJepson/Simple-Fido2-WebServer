@@ -15,6 +15,9 @@
     
     <label for="password">Password:</label>
     <input type="password" id="password" name="password" required /><br><br>
+
+    <label for="displayname">Display Name:</label>
+    <input type="text" id="displayname" name="displayname" required /><br><br>
     
     <button type="submit">Register</button>
   </form>
@@ -22,7 +25,10 @@
 <div>
   <button onclick="register()">Fido2 Register</button>
 </div>
-  
+  </br></br>
+  <a href="../">
+    Back to Login
+  </a>
   <script>
     //Fido2
 
@@ -54,15 +60,20 @@
 
     async function register() {
       const username = document.getElementById('username').value;
-
+      const displayname = document.getElementById('displayname').value;
       if (!username) {
         alert('Please enter a username');
+        return;
+      }
+      if (!displayname) {
+        alert('Please enter a display name');
         return;
       }
 
       // Create the payload to send in the POST request
       const payload = {
         username: username,
+        displayname: displayname,
       };
 
       try {
@@ -75,6 +86,13 @@
         });
 
         const options = await optionsResponse.json();
+
+        if (options.error) {
+          console.error('Error during Fido2 registration: ', options.error);
+          alert('An error occurred during registration: ' + options.error);
+          return;
+        }
+
         console.log('Registration options received:', options);
         // Convert challenge and user.id from base64url to Uint8Array
         //options.challenge = options.challenge;
@@ -135,11 +153,13 @@
       // Get values from input fields
       const username = document.getElementById('username').value;
       const password = document.getElementById('password').value;
+      const displayname = document.getElementById('displayname').value;
 
       // Create the payload to send in the POST request
       const payload = {
         username: username,
-        password: password
+        password: password,
+        displayname: displayname
       };
 
       try {

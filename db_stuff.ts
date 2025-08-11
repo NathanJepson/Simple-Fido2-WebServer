@@ -10,6 +10,7 @@ db.execute(`
     CREATE TABLE IF NOT EXISTS people (
       id TEXT PRIMARY KEY,
       username TEXT UNIQUE,
+      display_name TEXT,
       password_hash TEXT
     )
   `);

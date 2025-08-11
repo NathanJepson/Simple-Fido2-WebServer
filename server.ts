@@ -1,5 +1,5 @@
 import { DB } from "https://deno.land/x/sqlite/mod.ts";
-import { Fido2Lib} from "https://deno.land/x/fido2/dist/main.js";
+import { Fido2Lib } from "https://deno.land/x/fido2/dist/main.js";
 
 const f2l = new Fido2Lib({
     timeout: 42,
@@ -14,6 +14,19 @@ const f2l = new Fido2Lib({
     authenticatorRequireResidentKey: false,
     authenticatorUserVerification: "required"
 });
+
+const challengeMap = new Map<string, string>();
+
+export function setChallenge(username: string, challenge: string) {
+  challengeMap.set(username, challenge);
+  // Optional: setTimeout(() => challengeMap.delete(userId), 5 * 60 * 1000);
+}
+export function getChallenge(username: string): string | undefined {
+  return challengeMap.get(username);
+}
+export function deleteChallenge(username: string) {
+  challengeMap.delete(username);
+}
 
 function generateUserId() {
   // 32 random bytes (safe within 1–64 bytes range)
@@ -147,7 +160,7 @@ Deno.serve(async (req) => {
   // Access the session_id cookie
   const sessionId = cookies["session_id"];
 
-  if (req.method === "GET" && pathname === "/") {
+  if (req.method === "GET" && (pathname === "/" || pathname === "/login")) {
     try {
       // Serve the HTML page
       const htmlContent = await serveHtml();
@@ -277,11 +290,12 @@ Deno.serve(async (req) => {
         // We check if there is such a user in the database
         const query = db.prepareQuery("SELECT id FROM people WHERE username = ?");
         const username = body.username;
+        const displayname = body.displayname;
         const row = query.first([username]);
         if (row === undefined) {
           const password_hash = await hash(body.password);
           console.log("Hash:", password_hash);
-          db.query("INSERT INTO people (id,username,password_hash) VALUES (?,?)", [bufferSourceToBase64Url(generateUserId()),username,password_hash]);
+          db.query("INSERT INTO people (id,username,password_hash,display_name) VALUES (?,?,?,?)", [bufferSourceToBase64Url(generateUserId()),username,password_hash,displayname]);
           return new Response(
             JSON.stringify({ message: `Successfully registered new user ${username}` }),
             { status: 200, headers: { "Content-Type": "application/json" } }
@@ -318,6 +332,7 @@ Deno.serve(async (req) => {
       // Log the data (for demonstration purposes)
       console.log("New user data:", body);
       const username = body.username;
+      const displayname = body.displayname;
       
       try {
         // We check if there is such a user in the database
@@ -326,30 +341,46 @@ Deno.serve(async (req) => {
 
         const uniqueID = generateUserId()
 
-        //TODO: If there's no Fido2 Credentials on the user entry -- or a password hash -- we can safely delete the user 
+        //If there's no Fido2 Credentials on the user entry -- and no password hash -- we can safely delete the user 
         //in the database and proceed with registering
+        let deleteUser = false;
 
-        if (row === undefined) {
+        try {
+          const queryPassword = db.prepareQuery("SELECT password_hash FROM people WHERE username = ?");
+          const rowPassword = queryPassword.first([username]);
+          const queryCreds = db.prepareQuery("SELECT id FROM credentials WHERE username = ?");
+          const rowCreds = queryCreds.first([username]);
+
+          if ((rowPassword === undefined || (rowPassword !== undefined && (rowPassword[0] == null || rowPassword[0] == ""))) && (rowCreds === undefined)) {
+            console.log(`Deleting ${username} from the database.`);
+            db.query("DELETE FROM people WHERE username = ?",[username]);
+            deleteUser = true;
+          }
+        } catch (error) {
+          console.error("JSON error:", error);
+          return new Response(
+            JSON.stringify({ error: "Internal Server Error" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        if ( (row === undefined) || deleteUser ) {
             const user = {
                 id: uniqueID,
                 name: username,
-                displayName: "Example User"
+                displayName: displayname
             };
                 
             registrationOptions.user = user;
 
-            //console.log('Registration options',registrationOptions)
-
           try {
             //registrationOptions.challenge = toBase64Url(registrationOptions.challenge);
             const encodedChallenge = bufferSourceToBase64Url(registrationOptions.challenge);
-            //console.log("Challenge type:",typeof registrationOptions.challenge);
             //registrationOptions.challenge = Buffer.from(registrationOptions.challenge);
             
             //console.log('Check registration options challenge type',registrationOptions.challenge);
-            //console.log("Challenge type:",typeof registrationOptions.challenge);
             //console.log('Params before inserting session challenge',username,encodedChallenge);
-            db.query("INSERT INTO people (id,username) VALUES (?,?)", [bufferSourceToBase64Url(registrationOptions.user.id),username]);
+            db.query("INSERT INTO people (id,username,display_name) VALUES (?,?,?)", [bufferSourceToBase64Url(registrationOptions.user.id),username,displayname]);
             db.query("INSERT INTO sessionChallenges (username,sessionChallenge) VALUES (?,?)", [username,encodedChallenge]);            
             const safeOptions = prepareRegistrationOptionsForClient(registrationOptions);
 
@@ -534,6 +565,7 @@ Deno.serve(async (req) => {
 
               const credId = credIDRow[0];
               const encodedChallenge = bufferSourceToBase64Url(authnOptions.challenge);
+              setChallenge(username,encodedChallenge);
               const safeAuthnOptions = prepareAuthenticationOptionsForClient(authnOptions);
 
               const safeAuthnOptions2 = {
@@ -588,8 +620,185 @@ Deno.serve(async (req) => {
   }
 
 
-  if (req.method === "POST" && pathname === "/Fido2") {
-    
+  if (req.method === "POST" && pathname === "/Fido2-End") {
+    try {
+      const userRequest = await req.json();
+
+      console.log('User request from client for final Fido2 step: ',userRequest);
+
+      const username = userRequest.username;
+
+      if (!username) {
+        throw "Username not supplied."
+      }
+
+      try {
+        const query = db.prepareQuery("SELECT id FROM people WHERE username = ?");
+        const row = query.first([username]);
+        if (row === undefined) {
+          return new Response(
+            JSON.stringify({ message: "Login Failure!" }),
+            { status: 401, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      } catch (error) {
+          console.error("SQLite error:", error);
+          return new Response(
+            JSON.stringify({ error: "Internal Server Error" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+      }
+
+      try {
+        const challenge = getChallenge(username);
+
+        if (!challenge) {
+          throw `Challenge doesn't exist for username ${username}`
+        } else {
+          try {
+            const query = db.prepareQuery("SELECT cred_id FROM credentials WHERE username = ?");
+            const query2 = db.prepareQuery("SELECT public_key FROM credentials WHERE username = ?");
+            const query3 = db.prepareQuery("SELECT counter FROM credentials WHERE username = ?");
+            const query4 = db.prepareQuery("SELECT id FROM people WHERE username = ?");
+
+            const row = query.first([username]);
+            const row2 = query2.first([username]);
+            const row3 = query3.first([username]);
+            const row4 = query4.first([username]);
+
+            if (row && row2 && row3 && row4) {
+              const credID = row[0]
+              const publicKey = String(row2[0]);
+              const prevCounter = Number(row3[0]);
+              const userHandle = String(row4[0]);
+
+              const assertionExpectations = {
+                allowCredentials: [{
+                    id: credID,
+                    type: "public-key"
+                }],
+                challenge: challenge,
+                origin: "http://localhost:8000",
+                factor: "either",
+                publicKey: publicKey,
+                prevCounter: prevCounter,
+                userHandle: userHandle
+              };
+
+              try {
+                const clientAssertionResponse = {
+                  id: base64urlToUint8Array(userRequest.rawId).buffer,
+                  rawId: base64urlToUint8Array(userRequest.rawId).buffer,
+                  response: {
+                    clientDataJSON: userRequest.response.clientDataJSON,
+                    authenticatorData: base64urlToUint8Array(userRequest.response.authenticatorData).buffer,
+                    signature: userRequest.response.signature,
+                    userHandle: userRequest.response.userHandle
+                  }
+                };
+                const authnResult = await f2l.assertionResult(clientAssertionResponse, assertionExpectations); // will throw on error
+                console.log('End Fido2 authnResult success result: ',authnResult);
+                
+                if (authnResult.authnrData) {
+                  const newCounter = authnResult.authnrData.get("counter");
+                  
+                  //From the WebAuthn Spec:
+                  //If authData.signCount is nonzero or storedSignCount is nonzero, then run the following sub-step:
+                  //If authData.signCount is
+                    //greater than storedSignCount:
+                      //Update storedSignCount to be the value of authData.signCount.
+                    //less than or equal to storedSignCount:
+		                      //This is a signal that the authenticator may be cloned, i.e. at least two copies of the credential 
+                          // private key may exist and are being used in parallel. Relying Parties should incorporate this 
+                          // information into their risk scoring. Whether the Relying Party updates storedSignCount in this case, 
+                          // or not, or fails the authentication ceremony or not, is Relying Party-specific.
+                  if (newCounter != 0 || prevCounter != 0) {
+                    if (!(newCounter > prevCounter)) {
+                      throw "Error: counter mismatch! Might be a risk."
+                    } else {
+                        try {
+                          db.query("UPDATE credentials SET counter = ? WHERE username = ?",[newCounter,username]);
+                        } catch (error) {
+                          console.error("SQLite error:", error);
+                          return new Response(
+                            JSON.stringify({ error: "Internal Server Error" }),
+                            { status: 500, headers: { "Content-Type": "application/json" } }
+                          );
+                        }
+                    }
+                  }
+                  
+                  try {
+                    deleteChallenge(username);
+                  } catch (error) {
+                    console.log("error in deleting challenge: ",error)
+                  }
+
+                  const newCookie = crypto.randomUUID();
+                  try {
+                    db.query("INSERT INTO cookies (cookie,id) VALUES (?,?)", [newCookie,userHandle]);
+                  } catch (error) {
+                    console.error("SQLite error:", error);
+                    return new Response(
+                      JSON.stringify({ error: "Internal Server Error" }),
+                      { status: 500, headers: { "Content-Type": "application/json" } }
+                    );
+                  }     
+                  console.log("Cookie we are sending:",newCookie)
+                  
+                  // Respond with a success message
+                  return new Response(
+                    JSON.stringify({ message: "Data received successfully!"}),
+                    { status: 200, headers: { "Content-Type": "application/json", 
+                      "Set-Cookie":`session_id=${newCookie}; path=/; HttpOnly; SameSite=Strict; Max-Age=3600`} 
+                    }
+                  );
+                } else {
+                  console.error("Counter value not present in authentication result.");
+                  return new Response(
+                    JSON.stringify({ error: "Internal Server Error" }),
+                    { status: 500, headers: { "Content-Type": "application/json" } }
+                  );
+                }
+
+              } catch (error) {
+                console.error("Error: ", error);
+                return new Response(
+                  JSON.stringify({ error: "Login error." }),
+                  { status: 401, headers: { "Content-Type": "application/json" } }
+                );
+              }
+            } else {
+              console.error("Error: Fido2 not registered for user");
+              return new Response(
+                JSON.stringify({ error: "Login error." }),
+                { status: 400, headers: { "Content-Type": "application/json" } }
+              );
+            }
+
+          } catch (error) {
+            console.error("SQLite error:", error);
+            return new Response(
+              JSON.stringify({ error: "Internal Server Error" }),
+              { status: 500, headers: { "Content-Type": "application/json" } }
+            );
+          }       
+        }
+      } catch (error) {
+        console.error("Error: ", error);
+        return new Response(
+          JSON.stringify({ error: "Login error." }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      
+    } catch (error) {
+      console.error("Error parsing JSON:", error);
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON format" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
   }
 
   if (req.method === "GET" && pathname.substring(0,4) === "/Box") {

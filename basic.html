@@ -45,6 +45,11 @@
       return bytes;
     }
 
+    function bufferToBase64url(buffer) {
+      return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+    }
+
     async function login() {
       const username = document.getElementById('username').value;
 
@@ -74,9 +79,6 @@
 
         console.log('Authentication options received:', options);
 
-        //options.challenge = base64urlToUint8Array(options.challenge);
-        //const credential = await navigator.credentials.get({ publicKey: options });
-
         if (options.allowCredentials) {
           options.allowCredentials = options.allowCredentials.map((cred) => ({
             ...cred,
@@ -91,8 +93,46 @@
           } 
         });
 
-        console.log('Credential info to send:',credential);
+        const credentialWithUsername = {
+          id: credential.id,
+          rawId: bufferToBase64url(credential.rawId),
+          type: credential.type,
+          username: username,
+          authenticatorAttachment: credential.authenticatorAttachment,
+          clientExtensionResults: credential.clientExtensionResults,
+          response: {
+            clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+            authenticatorData: bufferToBase64url(credential.response.authenticatorData),
+            signature: bufferToBase64url(credential.response.signature),
+            userHandle: bufferToBase64url(credential.response.userHandle)
+          }
+        };
 
+        console.log('Credential info to send:',credentialWithUsername);
+
+        const verifyResponse = await fetch("/Fido2-End", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(credentialWithUsername)
+        });
+
+        const result = await verifyResponse.json();
+
+        console.log('Result from server:',result);
+
+        if (result.message) {
+          alert(`Login successful! ${result.message}`);
+
+          if (verifyResponse.ok) {
+            try {
+              window.location.href = "/Box/Service.png";
+            } catch (error) {
+              console.log(error);
+            }
+          }
+        } else {
+          alert(`Error: ${result.error}`);
+        }
 
       } catch (error) {
         console.error('Error: ', error);
