@@ -3,6 +3,7 @@ https://deno.land/x/fido2
 https://deno.land/x/fido2@3.5.3/dist/main.js
 ^All functions currently available in the library
 https://fido-tools.github.io/fido2-library/Fido2Lib.html
+^Documentation
 https://webauthn-open-source.github.io/fido2-lib/Fido2Lib.html
 ^Documentation of some of the Fido2 params
 
@@ -32,5 +33,22 @@ https://deno.land/x/fido2@3.5.3/types/main.d.ts
 
 https://github.com/webauthn-open-source/fido2-lib/blob/master/examples/u2f-migrated-example.js
 ^Possible example usage, if it's not wrong or outdated
+
+The FIDO2 "appid" extension, often used within libraries like fido2-lib, provides backward compatibility for WebAuthn with legacy FIDO U2F credentials
+
+allowCredentials are used to append a credentialId to assertionOptions when credentials are not "discoverable credentials"
+
+How to handle "signcount" or "prevCounter":
+	Let storedSignCount be the stored signature counter value associated with credential.id. 
+	If authData.signCount is nonzero or storedSignCount is nonzero, then run the following sub-step:
+
+	If authData.signCount is
+		greater than storedSignCount:
+		Update storedSignCount to be the value of authData.signCount.
+		less than or equal to storedSignCount:
+		This is a signal that the authenticator may be cloned, i.e. at least two copies of the credential private key may exist and are being used in parallel. Relying Parties should incorporate this information into their risk scoring. Whether the Relying Party updates storedSignCount in this case, or not, or fails the authentication ceremony or not, is Relying Party-specific.
+
+
+Running the server:
 
 deno run --allow-net --allow-read --allow-write server.ts
